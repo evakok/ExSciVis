@@ -1,0 +1,19 @@
+﻿  clipboard.c
+  context.c
+  gamma.c
+  init.c
+  input.c
+  joystick.c
+  monitor.c
+  time.c
+  wgl_context.c
+  win32_clipboard.c
+  win32_gamma.c
+  win32_init.c
+  win32_joystick.c
+  win32_monitor.c
+  win32_time.c
+  win32_window.c
+  window.c
+  Generating Code...
+  glfw.vcxproj -> C:\Users\kokts\Desktop\ExSciVis\ExSciVis2018-master\out\external\glfw-3.0.3\src\Debug\glfw3.lib

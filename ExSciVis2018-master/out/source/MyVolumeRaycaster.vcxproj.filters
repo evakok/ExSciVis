@@ -1,0 +1,22 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\kokts\Desktop\ExSciVis\ExSciVis2018-master\ExSciVis2018-master\source\my_volume_raycaster.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\kokts\Desktop\ExSciVis\ExSciVis2018-master\ExSciVis2018-master\source\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="C:\Users\kokts\Desktop\ExSciVis\ExSciVis2018-master\ExSciVis2018-master\source\shader\pass_through_GUI.vert" />
+    <None Include="C:\Users\kokts\Desktop\ExSciVis\ExSciVis2018-master\ExSciVis2018-master\source\shader\volume.vert" />
+    <None Include="C:\Users\kokts\Desktop\ExSciVis\ExSciVis2018-master\ExSciVis2018-master\source\shader\pass_through_GUI.frag" />
+    <None Include="C:\Users\kokts\Desktop\ExSciVis\ExSciVis2018-master\ExSciVis2018-master\source\shader\volume.frag" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{A3984411-A2D4-3424-B285-1DC969B964B2}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
