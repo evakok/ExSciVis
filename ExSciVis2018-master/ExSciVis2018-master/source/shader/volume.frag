@@ -45,6 +45,20 @@ get_sample_data(vec3 in_sampling_pos)
     vec3 obj_to_tex = vec3(1.0) / max_bounds;
     return texture(volume_texture, in_sampling_pos * obj_to_tex).r;
 
+
+}
+
+vec3
+get_gradient(vec3 in_sampling_pos)
+{
+		vec3 p = in_sampling_pos;
+		vec3 voxel_size = max_bounds / volume_dimensions;
+		float x = (get_sample_data(vec3(p.x + voxel_size.x, p.y, p.z)) - get_sample_data(vec3(p.x - voxel_size.x, p.y, p.z))) / 2;
+		float y = (get_sample_data(vec3(p.x, p.y + voxel_size.y, p.z)) - get_sample_data(vec3(p.x, p.y - voxel_size.y, p.z))) / 2;
+		float z = (get_sample_data(vec3(p.x, p.y, p.z + voxel_size.z)) - get_sample_data(vec3(p.x, p.y, p.z - voxel_size.z))) / 2;
+		vec3 gradient = vec3(x, y, z);
+
+		return gradient;
 }
 
 void main()
@@ -106,8 +120,11 @@ void main()
 
         // dummy code
         vec4 color = texture(transfer_texture, vec2(s,s));
-		average += color;
-        
+		average.r += color.r;
+		average.b += color.b;
+		average.g += color.g;
+		average.a += color.a;
+		
         // increment the ray sampling position
         sampling_pos  += ray_increment;
 
@@ -115,8 +132,13 @@ void main()
         inside_volume  = inside_volume_bounds(sampling_pos);
 		count++;
     }
+	average.r /= count;
+	average.b /= count;
+	average.g /= count;
+	average.a /= count;
 	
-	dst = average/count;
+	dst = average * 3;
+	
 #endif
     
 #if TASK == 12 || TASK == 13
@@ -130,40 +152,74 @@ void main()
         float s = get_sample_data(sampling_pos);
 
         // dummy code
-		
-		vec4 color = texture(transfer_texture, vec2(s,s));
-		if( s > iso_value) {
-			iso += iso_value;
-		}
+		if( s >= iso_value) {
+			iso.r = iso_value;
+			iso.g = iso_value;
+			iso.b = iso_value;
+			iso.a = iso_value;
 
-        // increment the ray sampling position
-        sampling_pos += ray_increment;
 #if TASK == 13 // Binary Search
+		
         //IMPLEMENT;
-		vec4 iso = vec4(0,0,0,0);
-		vec3 start = sampling_pos - 1;
+		vec3 start = sampling_pos - ray_increment;
 		vec3 end = sampling_pos;
-		vec3 mid = (start + end) / 2;
-		
+		vec3 mid = (start + end) / 2.0;
 		float s_mid = get_sample_data(mid);
+		int count = 0;
 		
-		if(s_mid < iso_value) {
-			start = mid;
+		while(s_mid != iso_value) {
+			if(s_mid < iso_value) {
+				start = mid;
+			}
+			else if(s_mid > iso_value) {
+				end = mid;
+			}
+			mid = (start + end) / 2.0;
+			s_mid = get_sample_data(mid);
+			
+			// without this, it will run too much!
+			if(++count > 100)
+				break;
 		}
-		if(s_mid > iso_value) {
-			end = mid;
-		}	
-		if(s_mid == iso_value) {
-			iso += iso_value;
-		}		
+	
+		iso.r = iso_value;
+		iso.g = iso_value;
+		iso.b = iso_value;
+		iso.a = iso_value;
+		
 #endif
 #if ENABLE_LIGHTNING == 1 // Add Shading
-        IMPLEMENTLIGHT;
+		
+		vec3 gradient = get_gradient(sampling_pos);
+		iso += vec4(gradient, 1.0);
+		
 #if ENABLE_SHADOWING == 1 // Add Shadows
-        IMPLEMENTSHADOW;
-#endif
-#endif
+		vec3 normal = normalize(get_gradient(sampling_pos));
+		vec3 light = normalize(light_position - sampling_pos);
+		vec3 camera = normalize(camera_location - sampling_pos);
+		vec3 ref = reflect(-light, normal);
+		float lambertian = max(dot(light, normal), 0.0);
+		
+		float specularAngle = pow(max(0.0, dot(ref, camera)), light_ref_coef);
 
+		float diffuseAngle = max(0.0, dot(light, normal));
+		vec3 ambient = light_ambient_color;
+		vec3 diffuse = clamp((light_diffuse_color * diffuseAngle), 0.0, 1.0);
+		vec3 specular = clamp((light_specular_color * specularAngle), 0.0, 1.0);
+		
+		vec3 finalColor = ambient + diffuse + specular;
+		iso = vec4(finalColor, 1.0);
+		
+		
+		
+#endif
+#endif
+			break;
+		}
+		
+        // increment the ray sampling position
+        sampling_pos += ray_increment;
+		
         // update the loop termination condition
         inside_volume = inside_volume_bounds(sampling_pos);
     }
