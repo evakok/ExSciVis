@@ -189,11 +189,11 @@ void main()
 		
 #endif
 #if ENABLE_LIGHTNING == 1 // Add Shading
-		
+
+		float visibility = 1.0;
 		vec3 gradient = get_gradient(sampling_pos);
 		iso += vec4(gradient, 1.0);
-		
-#if ENABLE_SHADOWING == 1 // Add Shadows
+
 		vec3 normal = normalize(get_gradient(sampling_pos));
 		vec3 light = normalize(light_position - sampling_pos);
 		vec3 camera = normalize(camera_location - sampling_pos);
@@ -207,14 +207,27 @@ void main()
 		vec3 diffuse = clamp((light_diffuse_color * diffuseAngle), 0.0, 1.0);
 		vec3 specular = clamp((light_specular_color * specularAngle), 0.0, 1.0);
 		
-		vec3 finalColor = ambient + diffuse + specular;
+#if ENABLE_SHADOWING == 1 // Add Shadows
+		
+		vec3 current_pos = sampling_pos;
+		vec3 tolight_increment = normalize(sampling_pos - light_position) * sampling_distance;
+		
+		while (inside_volume) {
+			current_pos += tolight_increment;
+			float s_shadow = get_sample_data(current_pos);
+			if (s_shadow > iso_value) { //point is in shadow
+				visibility = 0.3;
+				break;
+			}
+			inside_volume = inside_volume_bounds(current_pos);
+		}
+#endifs
+		vec3 finalColor = (ambient + diffuse + specular) * visibility;
 		iso = vec4(finalColor, 1.0);
-		
-		
-		
 #endif
-#endif
+		
 			break;
+			
 		}
 		
         // increment the ray sampling position
@@ -240,7 +253,10 @@ void main()
         float s = get_sample_data(sampling_pos);
 #endif
         // dummy code
-        dst = vec4(light_specular_color, 1.0);
+        vec4 composite = 
+		
+		//dst = vec4(light_specular_color, 1.0);
+		
 
         // increment the ray sampling position
         sampling_pos += ray_increment;
