@@ -150,13 +150,14 @@ void main()
     {
         // get sample
         float s = get_sample_data(sampling_pos);
+		vec4 color = texture(transfer_texture, vec2(s,s));
 
         // dummy code
 		if( s >= iso_value) {
-			iso.r = iso_value;
-			iso.g = iso_value;
-			iso.b = iso_value;
-			iso.a = iso_value;
+			iso.r = color.r;
+			iso.g = color.g;
+			iso.b = color.b;
+			iso.a = color.a;
 
 #if TASK == 13 // Binary Search
 		
@@ -182,12 +183,13 @@ void main()
 				break;
 		}
 	
-		iso.r = iso_value;
-		iso.g = iso_value;
-		iso.b = iso_value;
-		iso.a = iso_value;
-		
+		iso.r = color.r;
+		iso.g = color.g;
+		iso.b = color.b;
+		iso.a = color.a;		
 #endif
+
+
 #if ENABLE_LIGHTNING == 1 // Add Shading
 
 		float visibility = 1.0;
@@ -221,7 +223,7 @@ void main()
 			}
 			inside_volume = inside_volume_bounds(current_pos);
 		}
-#endifs
+#endif
 		vec3 finalColor = (ambient + diffuse + specular) * visibility;
 		iso = vec4(finalColor, 1.0);
 #endif
@@ -241,7 +243,14 @@ void main()
 #endif 
 
 #if TASK == 31
-    // the traversal loop,
+	
+	int count = 0;
+	float trans = 1.0;
+	vec3 intensity = vec3(0.0, 0.0, 0.0);
+	float prevO;
+	float prevT = 0;
+    
+	// the traversal loop,
     // termination when the sampling position is outside volume boundarys
     // another termination condition for early ray termination is added
     while (inside_volume)
@@ -251,16 +260,30 @@ void main()
         IMPLEMENT;
 #else
         float s = get_sample_data(sampling_pos);
-#endif
-        // dummy code
-        vec4 composite = 
-		
-		//dst = vec4(light_specular_color, 1.0);
-		
+		vec4 color = texture(transfer_texture, vec2(s,s));
+		vec3 rgb = color.rgb;
+		float opacity = color.a;
+		vec3 I = rgb * opacity;
 
+		
+		trans = trans * (1 - prevO);
+		intensity += trans * I;
+		
+		if(trans == 0.0 || ++count == 100)
+			break;
+		
         // increment the ray sampling position
-        sampling_pos += ray_increment;
-
+        
+		if(count == 1)
+			intensity = I;
+		
+		prevO = opacity;
+		dst = vec4(intensity, 1.0); //vec4(light_specular_color, 1.0);	
+		sampling_pos += ray_increment;
+		
+		
+#endif
+		
 #if ENABLE_LIGHTNING == 1 // Add Shading
         IMPLEMENT;
 #endif
@@ -273,4 +296,3 @@ void main()
     // return the calculated color value
     FragColor = dst;
 }
-
