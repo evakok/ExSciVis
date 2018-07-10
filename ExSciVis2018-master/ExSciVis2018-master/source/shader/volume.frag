@@ -7,6 +7,8 @@
 #define ENABLE_LIGHTNING 0
 #define ENABLE_SHADOWING 0
 
+#define EPS 1e-9
+
 in vec3 ray_entry_position;
 
 layout(location = 0) out vec4 FragColor;
@@ -59,6 +61,27 @@ get_gradient(vec3 in_sampling_pos)
 		vec3 gradient = vec3(x, y, z);
 
 		return gradient;
+}
+
+vec3
+phong_shading(vec3 color, vec3 pos)
+{
+		vec3 gradient = get_gradient(pos);
+
+		vec3 normal = normalize(gradient);
+		vec3 light = normalize(light_position - pos);
+		vec3 camera = normalize(camera_location - pos);
+		vec3 ref = reflect(-light, normal);
+		float lambertian = max(dot(light, normal), 0.0);
+		
+		float specularAngle = pow(max(0.0, dot(ref, camera)), light_ref_coef);
+
+		float diffuseAngle = max(0.0, dot(light, normal));
+		vec3 ambient = color;
+		vec3 diffuse = clamp((light_diffuse_color * diffuseAngle), 0.0, 1.0);
+		vec3 specular = clamp((light_specular_color * specularAngle), 0.0, 1.0);
+
+		return ambient + diffuse + specular;
 }
 
 void main()
@@ -193,21 +216,8 @@ void main()
 #if ENABLE_LIGHTNING == 1 // Add Shading
 
 		float visibility = 1.0;
-		vec3 gradient = get_gradient(sampling_pos);
-		iso += vec4(gradient, 1.0);
-
-		vec3 normal = normalize(get_gradient(sampling_pos));
-		vec3 light = normalize(light_position - sampling_pos);
-		vec3 camera = normalize(camera_location - sampling_pos);
-		vec3 ref = reflect(-light, normal);
-		float lambertian = max(dot(light, normal), 0.0);
 		
-		float specularAngle = pow(max(0.0, dot(ref, camera)), light_ref_coef);
-
-		float diffuseAngle = max(0.0, dot(light, normal));
-		vec3 ambient = light_ambient_color;
-		vec3 diffuse = clamp((light_diffuse_color * diffuseAngle), 0.0, 1.0);
-		vec3 specular = clamp((light_specular_color * specularAngle), 0.0, 1.0);
+		vec3 finalColor = phong_shading(light_ambient_color, sampling_pos);
 		
 #if ENABLE_SHADOWING == 1 // Add Shadows
 		
@@ -224,7 +234,7 @@ void main()
 			inside_volume = inside_volume_bounds(current_pos);
 		}
 #endif
-		vec3 finalColor = (ambient + diffuse + specular) * visibility;
+		finalColor *= visibility;
 		iso = vec4(finalColor, 1.0);
 #endif
 		
@@ -244,50 +254,74 @@ void main()
 
 #if TASK == 31
 	
+	int num = 350;
 	int count = 0;
-	float trans = 1.0;
-	vec3 intensity = vec3(0.0, 0.0, 0.0);
-	float prevO;
-	float prevT = 0;
-    
+	float trans;
+	vec4 intensity = vec4(0.0, 0.0, 0.0, 0.0);
+	vec3 start = sampling_pos;
+	
+	bool isFrontToBack = false;     // BackToFront Compositing if set to false
+	if(!isFrontToBack) {
+		start += ray_increment * num;
+		ray_increment = -ray_increment;
+	}
+	float initial = 0;
 	// the traversal loop,
     // termination when the sampling position is outside volume boundarys
     // another termination condition for early ray termination is added
-    while (inside_volume)
+    while (inside_volume && ++count < num)
     {
-        // get sample
-#if ENABLE_OPACITY_CORRECTION == 1 // Opacity Correction
-        IMPLEMENT;
-#else
-        float s = get_sample_data(sampling_pos);
-		vec4 color = texture(transfer_texture, vec2(s,s));
-		vec3 rgb = color.rgb;
-		float opacity = color.a;
-		vec3 I = rgb * opacity;
-
-		
-		trans = trans * (1 - prevO);
-		intensity += trans * I;
-		
-		if(trans == 0.0 || ++count == 100)
-			break;
-		
-        // increment the ray sampling position
-        
+		float s = get_sample_data(start);
 		if(count == 1)
-			intensity = I;
-		
-		prevO = opacity;
-		dst = vec4(intensity, 1.0); //vec4(light_specular_color, 1.0);	
-		sampling_pos += ray_increment;
-		
-		
-#endif
-		
-#if ENABLE_LIGHTNING == 1 // Add Shading
-        IMPLEMENT;
-#endif
+			initial = s;
+		vec4 color = texture(transfer_texture, vec2(s,s));
+		vec4 I = color;
+			
+#if ENABLE_OPACITY_CORRECTION == 1 // Opacity Correction
+		// changing I.a
+		float dx = sampling_distance / sampling_distance_ref;
+        I.a = 1 - pow((1 - I.a), 255 * dx);
+#else			
+		I.rgb *= I.a;
 
+		if(isFrontToBack) {
+			trans = 1 - intensity.a;
+			intensity += trans * I;
+			
+			if(trans < EPS)
+				break;
+		
+		} else {	// Back-To-Front
+			intensity = I + intensity * (1 - I.a);
+		}
+	
+#endif
+		
+#if ENABLE_LIGHTNING == 1 // Add Shading 
+		float visibility = 1.0;
+		vec3 finalColor = phong_shading(intensity.rgb, sampling_pos);
+		
+#if ENABLE_SHADOWING == 1 // Add Shadows
+		
+		vec3 current_pos = sampling_pos;
+		vec3 tolight_increment = normalize(sampling_pos - light_position) * sampling_distance;
+		
+		while (inside_volume) {
+			current_pos += tolight_increment;
+			float s_shadow = get_sample_data(current_pos);
+			if (s_shadow > iso_value) { //point is in shadow
+				visibility = 0.3;
+				break;
+			}
+			inside_volume = inside_volume_bounds(current_pos);
+		}
+#endif
+		intensity.rgb = finalColor * intensity.a * visibility;
+		
+#endif
+		dst = intensity;
+		start += ray_increment;
+		
         // update the loop termination condition
         inside_volume = inside_volume_bounds(sampling_pos);
     }
